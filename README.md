@@ -1,44 +1,122 @@
 # passginity — Secure Password Generator
 
-A simple and secure password generator for Python. Supports custom character sets, exclusion of ambiguous characters, and cryptographically strong randomness.
+`passginity` is a configurable password generator for Python. It uses the
+standard-library `secrets` module, making every generated password suitable
+for security-sensitive use.
 
-Features:
-- Uses `secrets` module — cryptographically secure
-- Enable/disable letters, digits, and symbols
-- Option to exclude confusing characters: `0/O`, `1/I/l`
-- Clean and intuitive API
+## Features
 
----
+- cryptographically secure randomness;
+- built-in letters, digits, and symbols;
+- custom alphabets;
+- optional removal of ambiguous characters (`0/O`, `1/I/l`);
+- optional prevention of repeated characters;
+- generation of multiple passwords at once;
+- built-in `pin`, `wifi`, `high_security`, and `memorable` presets;
+- command-line interface with plain-text and JSON output;
+- no runtime dependencies.
 
 ## Installation
+
+Install from PyPI:
 
 ```bash
 pip install passginity
 ```
 
----
+Install the current project locally:
 
-## Quick Start
+```bash
+pip install -e .
+```
+
+The package requires Python 3.8 or newer.
+
+## Quick start
 
 ```python
 from passginity import pass_generate
 
-# Generate a 12-character password
 password = pass_generate()
-print(password)  # e.g., Kx9$mRt7qW#p
-
-# Exclude ambiguous characters (safe for manual input)
-password = pass_generate(exclude_ambiguous=True)
-print(password)  # e.g., Hb8n$Ef6vX!s
-
-# Letters and digits only (no symbols)
-password = pass_generate(sym_alp=False)
-print(password)  # e.g., mK9xRt7qWp2n
+print(password)  # e.g. Kx9$mRt7qW#p
 ```
 
----
+### Exclude repeated characters
 
-## Function: pass_generate
+Every character in the result is unique:
+
+```python
+password = pass_generate(length=16, exclude_repeating=True)
+```
+
+If the requested length is greater than the number of unique available
+characters, `ValueError` is raised.
+
+### Use a custom alphabet
+
+When `custom_alphabet` is supplied, it replaces the built-in letters, digits,
+and symbols:
+
+```python
+password = pass_generate(
+    length=10,
+    custom_alphabet="ABCDEF012345",
+)
+```
+
+Duplicate characters in a custom alphabet are removed automatically. The
+`exclude_ambiguous` option also applies to custom alphabets.
+
+### Generate multiple passwords
+
+```python
+from passginity import pass_generate_many
+
+passwords = pass_generate_many(
+    count=5,
+    length=20,
+    exclude_ambiguous=True,
+)
+```
+
+`pass_generate_many()` accepts the same generation options as
+`pass_generate()`.
+
+## Presets
+
+```python
+from passginity import generate_preset
+
+pins = generate_preset("pin", count=3)
+wifi_password = generate_preset("wifi")[0]
+secure_password = generate_preset("high_security")[0]
+memorable_password = generate_preset("memorable")[0]
+```
+
+| Preset | Length | Character set | Purpose |
+| --- | ---: | --- | --- |
+| `pin` | 6 | digits | Numeric access codes |
+| `wifi` | 20 | letters and digits without ambiguous characters | Easy manual entry |
+| `high_security` | 32 | letters, digits, and symbols | Maximum-strength credentials |
+| `memorable` | 14 | lowercase letters and digits without ambiguous characters | Easier reading and dictation |
+
+Preset length and repeated-character behavior can be overridden:
+
+```python
+passwords = generate_preset(
+    "high_security",
+    count=2,
+    length=40,
+    exclude_repeating=True,
+)
+```
+
+Available presets can also be inspected through the public `PRESETS`
+dictionary.
+
+## API
+
+### `pass_generate`
 
 ```python
 pass_generate(
@@ -46,24 +124,110 @@ pass_generate(
     eng_alp: bool = True,
     num_alp: bool = True,
     sym_alp: bool = True,
-    exclude_ambiguous: bool = False
+    exclude_ambiguous: bool = False,
+    exclude_repeating: bool = False,
+    custom_alphabet: Optional[str] = None,
 ) -> str
 ```
 
-Parameters:
-- length — password length (default: 12)
-- eng_alp — include Latin letters (a-z, A-Z)
-- num_alp — include digits (0-9)
-- sym_alp — include special symbols (!@#$%^&*...)
-- exclude_ambiguous — exclude easily confused characters: 0, O, 1, I, l
+### `pass_generate_many`
 
-Returns:
-- A randomly generated password as a string.
+```python
+pass_generate_many(count: int = 1, **options) -> List[str]
+```
 
-Raises:
-- ValueError — if length < 1 or all character sets are disabled.
+### `generate_preset`
 
----
+```python
+generate_preset(
+    name: str,
+    count: int = 1,
+    length: Optional[int] = None,
+    exclude_repeating: Optional[bool] = None,
+) -> List[str]
+```
+
+## Command-line interface
+
+After installation, use the `passginity` command:
+
+```bash
+passginity --length 20
+passginity --count 5 --exclude-ambiguous
+passginity --custom-alphabet ABCDEF012345 --length 12
+passginity --length 20 --exclude-repeating
+```
+
+The module form works without installing a console script:
+
+```bash
+python -m passginity --preset wifi
+```
+
+### Presets in the CLI
+
+```bash
+passginity --preset pin --count 3
+passginity --preset high_security
+passginity --preset memorable --length 20
+```
+
+### JSON output
+
+Use `--json` for scripts, APIs, or other automated consumers:
+
+```bash
+passginity --preset pin --count 3 --json
+```
+
+Example output:
+
+```json
+{
+  "count": 3,
+  "preset": "pin",
+  "passwords": ["482901", "137640", "925183"]
+}
+```
+
+Without `--json`, each generated password is printed on a separate line.
+
+### CLI options
+
+```text
+--preset {pin,wifi,high_security,memorable}
+-n, --count NUMBER
+-l, --length NUMBER
+--custom-alphabet CHARACTERS
+--exclude-ambiguous
+--exclude-repeating
+--no-letters
+--no-digits
+--no-symbols
+--json
+--version
+```
+
+Alphabet selection options cannot be combined with a preset. `--length` and
+`--exclude-repeating` are valid preset overrides.
+
+## Error handling
+
+The library raises:
+
+- `TypeError` when `length`, `count`, or `custom_alphabet` has an invalid type;
+- `ValueError` when length or count is less than one;
+- `ValueError` when the resulting alphabet is empty;
+- `ValueError` when a unique password is longer than its alphabet;
+- `ValueError` when an unknown preset is requested.
+
+## Development
+
+Run the test suite with the Python standard library:
+
+```bash
+python -m unittest discover -s tests -v
+```
 
 ## License
 
